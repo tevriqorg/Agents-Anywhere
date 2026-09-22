@@ -100,17 +100,36 @@ docker compose --env-file .env -f docker-compose.yml logs server-next
 
 Keep port 5174 bound to VPS localhost. Do not publish it in the public firewall.
 
-Expose it through Tailscale Serve:
+First inspect existing Tailscale Serve routes so this deployment does not replace
+another service already using the device's default HTTPS/443 route:
 
 ```bash
-sudo tailscale serve --bg localhost:5174
 tailscale serve status
 ```
 
-Use the resulting HTTPS `.ts.net` address from Web/Desktop/mobile clients.
+For this shared Guangzhou VPS, prefer a dedicated tailnet HTTPS port:
 
-If OAuth is later enabled, set `AGENT_SERVER_PUBLIC_ORIGIN` in `.env` to that
-HTTPS origin.
+```bash
+sudo tailscale serve --https=8443 --bg localhost:5174
+tailscale serve status
+```
+
+Clients then use the VPS MagicDNS name with `:8443`, for example:
+
+```text
+https://<vps-name>.<tailnet>.ts.net:8443
+```
+
+This keeps Agents Anywhere private to the tailnet and avoids disturbing any
+existing Serve mapping on HTTPS/443. Tailscale access-control rules continue to
+apply.
+
+If the VPS has no existing Serve route and you intentionally want Agents Anywhere
+on the default HTTPS endpoint instead, `tailscale serve --bg localhost:5174`
+is also valid.
+
+If OAuth is later enabled, set `AGENT_SERVER_PUBLIC_ORIGIN` in `.env` to the
+actual HTTPS origin, including `:8443` when the dedicated port is used.
 
 ## 5. Automatic image updates
 
