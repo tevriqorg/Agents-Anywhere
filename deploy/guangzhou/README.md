@@ -19,6 +19,21 @@ Compose file.
   because upstream migrations may prohibit old and new writers from running
   concurrently.
 
+## Quick bootstrap
+
+If GHCR authentication is already configured (or the container package has been
+made public), first installation can be reduced to:
+
+```bash
+curl -fsSL   https://raw.githubusercontent.com/tevriqorg/Agents-Anywhere/main/deploy/guangzhou/bootstrap.sh   -o /tmp/agents-anywhere-bootstrap.sh
+sudo bash /tmp/agents-anywhere-bootstrap.sh
+```
+
+The bootstrap script downloads only this deployment profile, generates the
+PostgreSQL password and Server secret locally, performs the first image pull and
+migration, verifies container health, and enables the hourly updater timer. It
+does not modify Tailscale Serve.
+
 ## 1. GHCR
 
 The workflow at `.github/workflows/server-image.yml` publishes on changes to
@@ -29,10 +44,13 @@ Either make the package public (the source repository is already public), or log
 the VPS into GHCR with a token that has `read:packages`.
 
 If the systemd timer below runs as root and the package remains private, perform
-the registry login as root as well:
+the registry login as root as well. To avoid putting the token in shell history,
+read it interactively:
 
 ```bash
-echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin
+read -rsp "GHCR token: " GHCR_TOKEN; echo
+printf '%s' "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin
+unset GHCR_TOKEN
 ```
 
 Package visibility and network exposure are separate: a public image does not
@@ -40,7 +58,8 @@ make the running Agents Anywhere service public.
 
 ## 2. Install deployment files on the VPS
 
-Create the deployment directory:
+The quick bootstrap above is preferred for a new install. For a manual install,
+create the deployment directory:
 
 ```bash
 sudo mkdir -p /opt/agents-anywhere
@@ -133,7 +152,8 @@ actual HTTPS origin, including `:8443` when the dedicated port is used.
 
 ## 5. Automatic image updates
 
-Install the supplied systemd units:
+The bootstrap script installs and enables the supplied systemd units. For a
+manual install:
 
 ```bash
 sudo cp agents-anywhere-update.service /etc/systemd/system/
