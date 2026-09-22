@@ -1,0 +1,10 @@
+[Unit]
+Description=Check and update Agents Anywhere from GHCR
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/agents-anywhere
+ExecStart=/opt/agents-anywhere/update.sh
