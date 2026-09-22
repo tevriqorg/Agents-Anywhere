@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly Agents Anywhere image update check
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+Persistent=true
+Unit=agents-anywhere-update.service
+
+[Install]
+WantedBy=timers.target
