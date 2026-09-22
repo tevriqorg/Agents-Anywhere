@@ -1,4 +1,4 @@
-# Guangzhou VPS private deployment
+# GZ VPS private deployment
 
 This deployment profile is intentionally separate from the upstream development
 Compose file.
@@ -8,7 +8,7 @@ Compose file.
 - GitHub Actions builds the `server` target from `docker/Dockerfile`.
 - The image is published as `ghcr.io/tevriqorg/agents-anywhere-server:main`
   plus an immutable `sha-<commit>` tag.
-- The Guangzhou VPS does **not** build Node/Python source.
+- The GZ VPS does **not** build Node/Python source.
 - PostgreSQL and Redis are private Docker services.
 - Agents Anywhere binds only to `127.0.0.1:5174` on the VPS.
 - Tailscale Serve is expected to provide the tailnet-only HTTPS entry point.
@@ -25,7 +25,9 @@ If GHCR authentication is already configured (or the container package has been
 made public), first installation can be reduced to:
 
 ```bash
-curl -fsSL   https://raw.githubusercontent.com/tevriqorg/Agents-Anywhere/main/deploy/guangzhou/bootstrap.sh   -o /tmp/agents-anywhere-bootstrap.sh
+curl -fsSL \
+  https://raw.githubusercontent.com/tevriqorg/Agents-Anywhere/main/deploy/gz/bootstrap.sh \
+  -o /tmp/agents-anywhere-bootstrap.sh
 sudo bash /tmp/agents-anywhere-bootstrap.sh
 ```
 
@@ -126,7 +128,7 @@ another service already using the device's default HTTPS/443 route:
 tailscale serve status
 ```
 
-For this shared Guangzhou VPS, prefer a dedicated tailnet HTTPS port:
+For this shared GZ VPS, prefer a dedicated tailnet HTTPS port:
 
 ```bash
 sudo tailscale serve --https=8443 --bg localhost:5174

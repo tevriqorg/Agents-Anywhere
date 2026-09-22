@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 INSTALL_DIR="${AA_INSTALL_DIR:-/opt/agents-anywhere}"
 SOURCE_REF="${AA_SOURCE_REF:-main}"
-BASE_URL="${AA_DEPLOY_BASE_URL:-https://raw.githubusercontent.com/tevriqorg/Agents-Anywhere/${SOURCE_REF}/deploy/guangzhou}"
+BASE_URL="${AA_DEPLOY_BASE_URL:-https://raw.githubusercontent.com/tevriqorg/Agents-Anywhere/${SOURCE_REF}/deploy/gz}"
 
 require() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -29,7 +29,7 @@ fetch() {
   curl --fail --silent --show-error --location     "$BASE_URL/$name"     --output "$INSTALL_DIR/$name"
 }
 
-echo "Installing Guangzhou deployment files from $SOURCE_REF..."
+echo "Installing GZ deployment files from $SOURCE_REF..."
 fetch docker-compose.yml
 fetch update.sh
 fetch agents-anywhere-update.service
