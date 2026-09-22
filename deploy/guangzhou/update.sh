@@ -32,16 +32,18 @@ compose() {
 
 running_container="$(compose ps -q server-next 2>/dev/null || true)"
 running_image_id=""
+running_health=""
 if [[ -n "$running_container" ]]; then
   running_image_id="$(docker inspect --format '{{.Image}}' "$running_container" 2>/dev/null || true)"
+  running_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$running_container" 2>/dev/null || true)"
 fi
 
 echo "Pulling $IMAGE (Docker will reuse unchanged OCI layers)..."
 docker pull "$IMAGE"
 new_image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
 
-if [[ -n "$running_image_id" && "$running_image_id" == "$new_image_id" ]]; then
-  echo "No image change: $new_image_id"
+if [[ -n "$running_image_id" && "$running_image_id" == "$new_image_id" && "$running_health" == "healthy" ]]; then
+  echo "No image change and server is healthy: $new_image_id"
   exit 0
 fi
 
@@ -49,26 +51,33 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 {
   echo "timestamp=$timestamp"
   echo "previous_running_image_id=$running_image_id"
+  echo "previous_running_health=$running_health"
   echo "target_image=$IMAGE"
   echo "target_image_id=$new_image_id"
 } > "$STATE_DIR/update-$timestamp.env"
 
-echo "Image changed; preparing safe stop-migrate-start update."
-compose up -d postgres-next redis-next
+if [[ -n "$running_image_id" && "$running_image_id" == "$new_image_id" ]]; then
+  echo "Image is unchanged but the current server is not healthy; recreating it without a database migration."
+  compose up -d postgres-next redis-next
+  compose up -d --no-deps --force-recreate server-next
+else
+  echo "Image changed; preparing safe stop-migrate-start update."
+  compose up -d postgres-next redis-next
 
-# Some upstream schema revisions are explicitly not safe with old writers online.
-if [[ -n "$running_container" ]]; then
-  compose stop server-next
+  # Some upstream schema revisions are explicitly not safe with old writers online.
+  if [[ -n "$running_container" ]]; then
+    compose stop server-next
+  fi
+
+  echo "Running database migrations with the new image..."
+  if ! compose run --rm migrate-next; then
+    echo "ERROR: migration failed. Server remains stopped; inspect database/migration state before recovery." >&2
+    exit 1
+  fi
+
+  echo "Starting new server image..."
+  compose up -d --no-deps --force-recreate server-next
 fi
-
-echo "Running database migrations with the new image..."
-if ! compose run --rm migrate-next; then
-  echo "ERROR: migration failed. Server remains stopped; inspect database/migration state before recovery." >&2
-  exit 1
-fi
-
-echo "Starting new server image..."
-compose up -d --no-deps --force-recreate server-next
 
 container_id="$(compose ps -q server-next)"
 deadline=$((SECONDS + 120))
@@ -77,11 +86,11 @@ while (( SECONDS < deadline )); do
   case "$health" in
     healthy)
       echo "$new_image_id" > "$STATE_DIR/current-image-id"
-      echo "Update complete and healthy: $new_image_id"
+      echo "Server is healthy: $new_image_id"
       exit 0
       ;;
     unhealthy)
-      echo "ERROR: new server became unhealthy." >&2
+      echo "ERROR: server became unhealthy." >&2
       compose logs --tail=120 server-next >&2 || true
       exit 1
       ;;
