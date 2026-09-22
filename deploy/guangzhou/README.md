@@ -13,7 +13,8 @@ Compose file.
 - Agents Anywhere binds only to `127.0.0.1:5174` on the VPS.
 - Tailscale Serve is expected to provide the tailnet-only HTTPS entry point.
 - `update.sh` pulls the image first. Docker only downloads changed OCI layers.
-  If the running container already uses the pulled image ID, nothing restarts.
+  If the running container already uses the pulled image ID and is healthy,
+  nothing restarts.
 - When the image changes, the updater performs a stop → migrate → start sequence,
   because upstream migrations may prohibit old and new writers from running
   concurrently.
@@ -25,11 +26,17 @@ the Server, Web frontend, Dockerfile, or the workflow itself.
 
 The first GHCR package may be private depending on organization package settings.
 Either make the package public (the source repository is already public), or log
-the VPS into GHCR with a token that has `read:packages`:
+the VPS into GHCR with a token that has `read:packages`.
+
+If the systemd timer below runs as root and the package remains private, perform
+the registry login as root as well:
 
 ```bash
-echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u <github-user> --password-stdin
 ```
+
+Package visibility and network exposure are separate: a public image does not
+make the running Agents Anywhere service public.
 
 ## 2. Install deployment files on the VPS
 
@@ -54,11 +61,12 @@ chmod 700 update.sh
 chmod 600 .env
 ```
 
-Generate strong values and edit `.env`. For example:
+Generate strong URL-safe values and edit `.env`. Hex avoids password URL
+escaping problems in the PostgreSQL connection string:
 
 ```bash
-openssl rand -base64 36
-openssl rand -base64 48
+openssl rand -hex 32
+openssl rand -hex 48
 ```
 
 Do not commit the resulting `.env`.
@@ -95,7 +103,7 @@ Keep port 5174 bound to VPS localhost. Do not publish it in the public firewall.
 Expose it through Tailscale Serve:
 
 ```bash
-sudo tailscale serve --bg 5174
+sudo tailscale serve --bg localhost:5174
 tailscale serve status
 ```
 
@@ -116,8 +124,8 @@ sudo systemctl enable --now agents-anywhere-update.timer
 systemctl list-timers agents-anywhere-update.timer
 ```
 
-The default check interval is one hour. A no-change check does not recreate the
-Server. Concurrent updater runs are prevented with `flock`.
+The default check interval is one hour. A no-change/healthy check does not
+recreate the Server. Concurrent updater runs are prevented with `flock`.
 
 ## Failure boundary
 
